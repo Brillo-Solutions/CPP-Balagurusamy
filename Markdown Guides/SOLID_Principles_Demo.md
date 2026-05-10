@@ -1,4 +1,4 @@
-# SOLID Principles in C++: A Practical Demonstration
+# SOLID Principles in C++: IoT Temperature Controller Demonstration
 
 ## Introduction
 
@@ -13,54 +13,70 @@ The principles are:
 - **I**nterface Segregation Principle (ISP) - Don't force classes to use methods they don't need
 - **D**ependency Inversion Principle (DIP) - Depend on ideas, not specific things
 
-We'll use a notification system (like sending emails, SMS, and push notifications) to show how these principles work.
+We'll use an IoT Temperature Controller system to show how these principles work. This system monitors temperature, controls a fan, and sends notifications - inspired by real IoT projects like appliance control and water level monitoring.
 
 ## The Problem
 
-We need to build a notification system that can send notifications via email, SMS, and push notifications. The system should be extensible, maintainable, and follow SOLID principles.
+We need to build an IoT Temperature Controller system that monitors temperature, controls a fan actuator, and sends notifications when the temperature exceeds a threshold. The system should be extensible for different sensors, actuators, and notification methods, following SOLID principles. This is inspired by IoT projects like smart appliance control and water level monitoring systems.
 
 ## Initial Design (Violating SOLID Principles)
 
 ```cpp
 #include <iostream>
 #include <string>
-#include <vector>
 
 // Bad design - violates all SOLID principles
-class NotificationService {
+class IoTController {
+private:
+    float temperature = 25.5f; // Mock temperature
+    bool fanState = false;
+    std::string notificationType = "email"; // Hard-coded
+
 public:
-    void sendNotification(const std::string& type, const std::string& message, const std::string& recipient) {
-        if (type == "email") {
-            // Email sending logic
-            std::cout << "Sending email to " << recipient << ": " << message << std::endl;
-            // Simulate email validation, SMTP connection, etc.
-        } else if (type == "sms") {
-            // SMS sending logic
-            std::cout << "Sending SMS to " << recipient << ": " << message << std::endl;
-            // Simulate SMS gateway connection, character limit checking, etc.
-        } else if (type == "push") {
-            // Push notification logic
-            std::cout << "Sending push notification to " << recipient << ": " << message << std::endl;
-            // Simulate device token validation, APNs/FCM connection, etc.
+    void control() {
+        // Read temperature (hard-coded sensor)
+        float temp = temperature;
+
+        // Control logic mixed with hardware control
+        if (temp > 25.0f) {
+            if (!fanState) {
+                // Direct fan control
+                fanState = true;
+                std::cout << "Fan turned ON" << std::endl;
+
+                // Mixed notification logic
+                if (notificationType == "email") {
+                    std::cout << "Email sent: High temperature detected!" << std::endl;
+                } else if (notificationType == "sms") {
+                    std::cout << "SMS sent: High temperature detected!" << std::endl;
+                }
+                // Adding new notification types requires modifying this class!
+            }
+        } else {
+            if (fanState) {
+                fanState = false;
+                std::cout << "Fan turned OFF" << std::endl;
+            }
         }
     }
+
+    // To add new sensor type, modify this class!
+    void setTemperature(float temp) { temperature = temp; }
 };
 
 int main() {
-    NotificationService service;
-    service.sendNotification("email", "Welcome!", "user@example.com");
-    service.sendNotification("sms", "Your code is 1234", "+1234567890");
-    service.sendNotification("push", "New message", "device_token_123");
+    IoTController controller;
+    controller.control();
     return 0;
 }
 ```
 
 This design violates SOLID principles because:
-- **SRP**: The class handles multiple responsibilities (email, SMS, push)
-- **OCP**: Adding a new notification type requires modifying the class
+- **SRP**: The class handles sensing, actuation, and notification
+- **OCP**: Adding new sensors/actuators/notifiers requires modifying the class
 - **LSP**: Not applicable yet
 - **ISP**: Clients are forced to depend on methods they don't use
-- **DIP**: High-level module depends on low-level implementation details
+- **DIP**: High-level logic depends on low-level implementation details
 
 ## Refactored Design Following SOLID Principles
 
@@ -98,90 +114,91 @@ public:
 };
 ```
 
-**In Our Notification Example:**
-Each notification sender class does ONLY one thing - sends one type of notification.
+**In Our IoT Example:**
+Each IoT component class does ONLY one thing - inspired by the separation seen in ApplianceManager, TankManager, WifiManager, and MqttManager in the reference .ino files.
 
 ```cpp
 #include <iostream>
 #include <string>
 
-// Interface (like a blueprint) for notification sending
+// Interface for temperature sensor
+class ITemperatureSensor {
+public:
+    virtual float getTemperature() const = 0;
+    virtual ~ITemperatureSensor() = default;
+};
+
+// Interface for fan actuator
+class IFanActuator {
+public:
+    virtual void turnOn() = 0;
+    virtual void turnOff() = 0;
+    virtual bool isOn() const = 0;
+    virtual ~IFanActuator() = default;
+};
+
+// Interface for notification sender
 class INotificationSender {
 public:
-    virtual void send(const std::string& message, const std::string& recipient) = 0;
+    virtual void sendNotification(const std::string& message) = 0;
     virtual ~INotificationSender() = default;
 };
 
-// Email sender - ONLY sends emails, nothing else!
-class EmailNotificationSender : public INotificationSender {
+// Temperature sensor - ONLY reads temperature, nothing else!
+class DHTSensor : public ITemperatureSensor {
 public:
-    void send(const std::string& message, const std::string& recipient) override {
+    float getTemperature() const override {
+        // DHT-specific logic only
+        // Simulate reading from DHT sensor
+        return 25.5f; // Mock value
+    }
+};
+
+// Fan actuator - ONLY controls fan, nothing else!
+class RelayFan : public IFanActuator {
+private:
+    bool state = false;
+
+public:
+    void turnOn() override {
+        state = true;
+        std::cout << "Fan turned ON via relay" << std::endl;
+        // GPIO control logic for relay
+    }
+
+    void turnOff() override {
+        state = false;
+        std::cout << "Fan turned OFF via relay" << std::endl;
+        // GPIO control logic for relay
+    }
+
+    bool isOn() const override {
+        return state;
+    }
+};
+
+// Email notifier - ONLY sends email notifications, nothing else!
+class EmailNotifier : public INotificationSender {
+public:
+    void sendNotification(const std::string& message) override {
         // Email-specific logic only
-        validateEmail(recipient);
-        std::cout << "Sending email to " << recipient << ": " << message << std::endl;
-        // Connect to email server, authenticate, send...
+        validateEmailAddress();
+        std::cout << "Email notification: " << message << std::endl;
+        // SMTP connection, authentication, send...
     }
 
 private:
-    void validateEmail(const std::string& email) {
+    void validateEmailAddress() {
         // Email validation logic
-        if (email.find('@') == std::string::npos) {
-            throw std::invalid_argument("Invalid email address");
-        }
-    }
-};
-
-// SMS sender - ONLY sends SMS, nothing else!
-class SmsNotificationSender : public INotificationSender {
-public:
-    void send(const std::string& message, const std::string& recipient) override {
-        // SMS-specific logic only
-        validatePhoneNumber(recipient);
-        checkMessageLength(message);
-        std::cout << "Sending SMS to " << recipient << ": " << message << std::endl;
-        // Connect to SMS gateway, send message...
-    }
-
-private:
-    void validatePhoneNumber(const std::string& phone) {
-        // Phone validation logic
-        if (phone.empty() || phone[0] != '+') {
-            throw std::invalid_argument("Invalid phone number");
-        }
-    }
-
-    void checkMessageLength(const std::string& message) {
-        if (message.length() > 160) {
-            throw std::length_error("SMS message too long");
-        }
-    }
-};
-
-// Push sender - ONLY sends push notifications, nothing else!
-class PushNotificationSender : public INotificationSender {
-public:
-    void send(const std::string& message, const std::string& recipient) override {
-        // Push-specific logic only
-        validateDeviceToken(recipient);
-        std::cout << "Sending push notification to " << recipient << ": " << message << std::endl;
-        // Connect to push service, send notification...
-    }
-
-private:
-    void validateDeviceToken(const std::string& token) {
-        // Token validation logic
-        if (token.length() < 10) {
-            throw std::invalid_argument("Invalid device token");
-        }
     }
 };
 ```
 
 **Why SRP is Important:**
-- **Easy to change:** Want to improve email sending? Only touch EmailNotificationSender
-- **Easy to test:** Test each class separately
-- **Less bugs:** Changes in one area don't break others
-- **Reusable:** Use EmailNotificationSender in other projects
+- **Easy to change:** Want to improve temperature sensing? Only touch DHTSensor
+- **Easy to test:** Test each IoT component separately
+- **Less bugs:** Changes in sensing don't break actuation
+- **Reusable:** Use RelayFan in other IoT projects
 ```
 
 ### Step 2: Open-Closed Principle (OCP) - "Open for Extension, Closed for Modification"
@@ -231,78 +248,107 @@ public:
 };
 ```
 
-**In Our Notification Example:**
-The NotificationManager can add new types of senders without changing its own code.
+**In Our IoT Example:**
+The TemperatureController can work with new sensors, actuators, and notifiers without changing its code.
 
 ```cpp
 #include <memory>
-#include <vector>
 
-// Notification manager - Open for extension, closed for modification
-class NotificationManager {
+// IoT Controller - Open for extension, closed for modification
+class TemperatureController {
 private:
-    std::vector<std::unique_ptr<INotificationSender>> senders;  // List of senders
+    std::unique_ptr<ITemperatureSensor> sensor;
+    std::unique_ptr<IFanActuator> fan;
+    std::unique_ptr<INotificationSender> notifier;
+    float threshold;
 
 public:
-    // You can add ANY new sender without changing this class!
-    void addSender(std::unique_ptr<INotificationSender> sender) {
-        senders.push_back(std::move(sender));
-    }
+    // Constructor accepts ANY implementations of the interfaces
+    TemperatureController(std::unique_ptr<ITemperatureSensor> s,
+                         std::unique_ptr<IFanActuator> f,
+                         std::unique_ptr<INotificationSender> n,
+                         float t)
+        : sensor(std::move(s)), fan(std::move(f)), notifier(std::move(n)), threshold(t) {}
 
-    // Send to ALL registered senders
-    void sendAll(const std::string& message, const std::string& recipient) {
-        for (const auto& sender : senders) {
-            sender->send(message, recipient);
+    // Control logic - doesn't change when we add new components!
+    void control() {
+        float temp = sensor->getTemperature();
+        std::cout << "Temperature: " << temp << "°C" << std::endl;
+
+        if (temp > threshold && !fan->isOn()) {
+            fan->turnOn();
+            notifier->sendNotification("Fan activated due to high temperature");
+        } else if (temp <= threshold && fan->isOn()) {
+            fan->turnOff();
+            notifier->sendNotification("Temperature normalized, fan deactivated");
         }
-    }
-
-    // Send to a specific type of sender
-    void sendToType(const std::string& type, const std::string& message, const std::string& recipient) {
-        for (const auto& sender : senders) {
-            if (getSenderType(sender.get()) == type) {
-                sender->send(message, recipient);
-                break;
-            }
-        }
-    }
-
-private:
-    // Helper to identify sender types
-    std::string getSenderType(const INotificationSender* sender) const {
-        if (dynamic_cast<const EmailNotificationSender*>(sender)) return "email";
-        if (dynamic_cast<const SmsNotificationSender*>(sender)) return "sms";
-        if (dynamic_cast<const PushNotificationSender*>(sender)) return "push";
-        return "unknown";
     }
 };
 
-// Example usage:
+// Different sensor implementations - can add without modifying controller
+class DS18B20Sensor : public ITemperatureSensor {
+public:
+    float getTemperature() const override {
+        return 24.8f; // Different sensor implementation
+    }
+};
+
+class UltrasonicSensor : public ITemperatureSensor {
+public:
+    float getTemperature() const override {
+        return 26.2f; // Yet another sensor type
+    }
+};
+
+// Different actuator implementations
+class ServoFan : public IFanActuator {
+private:
+    bool state = false;
+public:
+    void turnOn() override {
+        state = true;
+        std::cout << "Servo fan activated" << std::endl;
+    }
+    void turnOff() override {
+        state = false;
+        std::cout << "Servo fan deactivated" << std::endl;
+    }
+    bool isOn() const override { return state; }
+};
+
+// Different notification implementations
+class SMSNotifier : public INotificationSender {
+public:
+    void sendNotification(const std::string& message) override {
+        std::cout << "SMS: " << message << std::endl;
+    }
+};
+
 int main() {
-    NotificationManager manager;
+    // Create controller with any combination of implementations
+    auto sensor = std::make_unique<DHTSensor>();
+    auto fan = std::make_unique<RelayFan>();
+    auto notifier = std::make_unique<EmailNotifier>();
+    TemperatureController controller(std::move(sensor), std::move(fan), std::move(notifier), 25.0f);
 
-    // Add existing senders
-    manager.addSender(std::make_unique<EmailNotificationSender>());
-    manager.addSender(std::make_unique<SmsNotificationSender>());
+    controller.control();
 
-    // Want to add WhatsApp notifications? Just create WhatsAppNotificationSender
-    // and add it - NO CHANGES to NotificationManager needed!
-    // manager.addSender(std::make_unique<WhatsAppNotificationSender>());
-
-    // Send to all
-    manager.sendAll("Hello!", "user@example.com");
-
-    // Send only email
-    manager.sendToType("email", "Welcome!", "user@example.com");
+    // Want to use different components? Just create new implementations
+    // and inject them - NO CHANGES to TemperatureController needed!
+    // auto newSensor = std::make_unique<DS18B20Sensor>();
+    // auto newFan = std::make_unique<ServoFan>();
+    // auto newNotifier = std::make_unique<SMSNotifier>();
+    // TemperatureController newController(std::move(newSensor), std::move(newFan), std::move(newNotifier), 25.0f);
 
     return 0;
 }
 ```
 
 **Why OCP is Important:**
-- **Easy to add features:** Want Slack notifications? Just create SlackNotificationSender and add it
-- **No breaking changes:** Adding new features doesn't break existing code
-- **Future-proof:** Your code can grow without constant rewrites
-- **Team friendly:** Multiple developers can add features without stepping on each other's code
+- **Easy to add features:** Want infrared sensors? Just create InfraredSensor and inject it
+- **No breaking changes:** Adding new IoT components doesn't break existing code
+- **Future-proof:** Your IoT system can grow with new devices
+- **Team friendly:** Multiple developers can add sensors/actuators without conflicts
 ```
 
 ### Step 3: Liskov Substitution Principle (LSP) - "Children Should Act Like Their Parents"
@@ -348,63 +394,100 @@ public:
 };
 ```
 
-**In Our Notification Example:**
-All notification senders must actually send notifications to the recipient.
+**In Our IoT Example:**
+All IoT components must behave according to their interface contracts.
 
 ```cpp
-// All concrete senders properly implement INotificationSender
-// This ensures LSP compliance - any INotificationSender can be used wherever INotificationSender is expected
+// All concrete implementations properly implement their interfaces
+// This ensures LSP compliance - any ITemperatureSensor can be used wherever ITemperatureSensor is expected
 
 // Example of LSP violation (don't do this):
-class BrokenPushSender : public INotificationSender {
+class BrokenSensor : public ITemperatureSensor {
 public:
-    void send(const std::string& message, const std::string& recipient) override {
-        // This violates LSP because it doesn't actually send to the recipient
-        // It just logs and doesn't perform the expected behavior
-        std::cout << "Logging message: " << message << " (not sending to " << recipient << ")" << std::endl;
+    float getTemperature() const override {
+        // This violates LSP because it doesn't return a temperature value
+        // It throws an exception instead of providing the expected behavior
+        throw std::runtime_error("Sensor malfunction!");
     }
 };
 
-// Correct implementation - actually sends to the recipient
-class WorkingPushSender : public INotificationSender {
+// Correct implementation - actually returns temperature
+class WorkingSensor : public ITemperatureSensor {
 public:
-    void send(const std::string& message, const std::string& recipient) override {
-        // Validate and actually send to the recipient
-        validateDeviceToken(recipient);
-        std::cout << "Sending push notification to " << recipient << ": " << message << std::endl;
-        // Connect to push service and deliver to device
+    float getTemperature() const override {
+        // Validate and actually return temperature reading
+        return 23.7f; // Valid temperature value
     }
+};
 
+// Example of LSP violation in actuator:
+class BrokenActuator : public IFanActuator {
+public:
+    void turnOn() override {
+        // This violates LSP because turnOn doesn't actually turn the fan on
+        // It just logs instead of performing the expected actuation
+        std::cout << "Pretending to turn fan on" << std::endl;
+    }
+    void turnOff() override { /* similar issue */ }
+    bool isOn() const override { return false; } // Always returns false!
+};
+
+// Correct implementation - actually controls the fan
+class WorkingActuator : public IFanActuator {
 private:
-    void validateDeviceToken(const std::string& token) {
-        if (token.length() < 10) {
-            throw std::invalid_argument("Invalid device token");
-        }
+    bool state = false;
+public:
+    void turnOn() override {
+        state = true;
+        // Actually control GPIO pin to turn fan on
+        std::cout << "Fan physically turned ON" << std::endl;
+    }
+    void turnOff() override {
+        state = false;
+        // Actually control GPIO pin to turn fan off
+        std::cout << "Fan physically turned OFF" << std::endl;
+    }
+    bool isOn() const override {
+        return state; // Returns actual state
     }
 };
 
-// This function can work with ANY INotificationSender
-void sendNotification(INotificationSender* sender, const std::string& message, const std::string& recipient) {
-    sender->send(message, recipient);  // Will work the same way for all senders
+// This function can work with ANY ITemperatureSensor
+void monitorTemperature(const ITemperatureSensor* sensor) {
+    float temp = sensor->getTemperature();  // Will work reliably for all sensors
+    std::cout << "Monitored temperature: " << temp << "°C" << std::endl;
+}
+
+// This function can work with ANY IFanActuator
+void controlFan(IFanActuator* actuator, bool shouldBeOn) {
+    if (shouldBeOn && !actuator->isOn()) {
+        actuator->turnOn();  // Will actually turn fan on
+    } else if (!shouldBeOn && actuator->isOn()) {
+        actuator->turnOff();  // Will actually turn fan off
+    }
 }
 
 int main() {
-    WorkingPushSender workingSender;
-    // BrokenPushSender brokenSender;  // Don't use this!
+    WorkingSensor workingSensor;
+    WorkingActuator workingActuator;
 
-    // Both should work identically
-    sendNotification(&workingSender, "Hello!", "device123");
-    // sendNotification(&brokenSender, "Hello!", "device123");  // Would not actually send!
+    // Both functions work reliably with proper implementations
+    monitorTemperature(&workingSensor);
+    controlFan(&workingActuator, true);
+
+    // Broken implementations would cause unexpected behavior!
+    // BrokenSensor brokenSensor;
+    // monitorTemperature(&brokenSensor);  // Would throw exception
 
     return 0;
 }
 ```
 
 **Why LSP is Important:**
-- **Reliable code:** You can trust that any INotificationSender will actually send notifications
-- **Easy testing:** Test with any concrete sender and expect the same behavior
-- **Polymorphism works:** Parent class pointers can be used safely with child objects
-- **No surprises:** Code behaves as expected, no hidden gotchas
+- **Reliable IoT:** You can trust that any ITemperatureSensor will return temperature readings
+- **Easy testing:** Test with any concrete component and expect consistent behavior
+- **Polymorphism works:** Interface pointers can be used safely with implementations
+- **No surprises:** IoT system behaves predictably with different hardware
 ```
 
 ### Step 4: Interface Segregation Principle (ISP) - "Don't Force Unwanted Methods on Classes"
@@ -452,8 +535,8 @@ public:
 };
 ```
 
-**In Our Notification Example:**
-Different senders implement only the interfaces they need.
+**In Our IoT Example:**
+Different IoT components implement only the interfaces they actually need.
 
 ```cpp
 #include <vector>
@@ -582,8 +665,8 @@ public:
 };
 ```
 
-**In Our Notification Example:**
-High-level business logic depends on abstractions, not specific sender implementations.
+**In Our IoT Example:**
+High-level IoT control logic depends on abstractions, not specific hardware implementations. This mirrors how MqttManager in the reference .ino files depends on ApplianceManager or TankManager through composition.
 
 ```cpp
 // High-level business logic depends on abstraction, not concrete implementations
@@ -715,22 +798,22 @@ int main() {
 }
 ```
 
-## Why SOLID Makes Your Code Better (Like a Superhero Team!)
+## Why SOLID Makes Your IoT Code Better (Like a Superhero Team!)
 
-Imagine your code is a superhero team:
-- **SRP**: Each superhero has one special power (not trying to do everything)
-- **OCP**: The team can add new heroes without rebuilding the headquarters
-- **LSP**: New heroes can fill in for old ones without breaking the mission
-- **ISP**: Each hero only carries the gadgets they actually use
-- **DIP**: The team depends on the "idea" of saving people, not specific tools
+Imagine your IoT system is a superhero team:
+- **SRP**: Each device component has one special function (sensing, actuating, notifying)
+- **OCP**: The system can add new IoT devices without rebuilding the controller
+- **LSP**: New sensors/actuators can replace old ones without breaking the system
+- **ISP**: Each IoT component only implements the interfaces it actually uses
+- **DIP**: The controller depends on the "idea" of sensors/actuators, not specific hardware
 
-## Benefits of SOLID Design (Real-World Advantages)
+## Benefits of SOLID Design in IoT (Real-World Advantages)
 
-1. **Easier to Fix Bugs**: When something breaks, you know exactly which class to look at
-2. **Add New Features Without Breaking Old Ones**: Like adding a new notification type without crashing existing code
-3. **Test Individual Pieces**: You can test email sending without worrying about SMS code
-4. **Change Your Mind Easily**: Want to switch from SMS to WhatsApp? Just swap the sender class
-5. **Reuse Code**: Use your EmailNotificationSender in completely different projects
+1. **Easier to Fix Hardware Issues**: When a sensor fails, you know exactly which class to debug
+2. **Add New IoT Devices Without Breaking Old Ones**: Like adding a humidity sensor without crashing temperature control
+3. **Test Individual Components**: You can test fan actuation without worrying about temperature sensing
+4. **Change Hardware Easily**: Want to switch from DHT to DS18B20 sensor? Just swap the implementation
+5. **Reuse Code**: Use your RelayFan actuator in completely different IoT projects
 
 ## Testing the SOLID Design (Making Sure It Works)
 
@@ -765,14 +848,16 @@ void testNotificationManager() {
 }
 ```
 
-## Final Thoughts: SOLID is Like Building with LEGO
+## Final Thoughts: SOLID is Like Building IoT Systems with LEGO
 
-SOLID principles help you build code that's:
-- **Easy to understand** (each piece has one job)
-- **Easy to change** (add new pieces without breaking old ones)
-- **Reliable** (pieces work predictably)
-- **Reusable** (use pieces in different projects)
+SOLID principles help you build IoT systems that are:
+- **Easy to understand** (each component has one IoT job)
+- **Easy to change** (add new sensors/actuators without breaking the system)
+- **Reliable** (components work predictably, crucial for IoT)
+- **Reusable** (use components in different IoT projects)
 
-Start with small projects and apply one principle at a time. Soon you'll wonder how you ever coded without SOLID!
+This demonstration draws inspiration from real IoT projects like ApplianceControl and WaterLevelMonitor, where managers are separated by responsibility and use dependency injection - perfect examples of SOLID in embedded systems.
 
-Remember: Good code is like a well-organized kitchen - everything has its place, and you can find what you need quickly!
+Start with small IoT projects and apply one principle at a time. Soon you'll wonder how you ever built IoT systems without SOLID!
+
+Remember: Good IoT code is like a well-organized smart home - everything has its place, and new devices integrate seamlessly!
