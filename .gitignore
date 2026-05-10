@@ -313,3 +313,12 @@ docs/_build/
 config.local
 .env
 .env.local
+
+# SOLID Principles Demo Files - EXPLICITLY TRACK THESE
+# These are educational source files that should be committed
+!solid_cpp_demo.cpp
+!solid_java_demo.java
+!solid_csharp_demo.cs
+!solid_python_demo.py
+!Markdown Guides/
+!*.md
