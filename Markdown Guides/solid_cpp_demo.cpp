@@ -1,6 +1,7 @@
 #include <iostream>
-#include <memory>
 #include <string>
+
+// Using raw pointers (*) and references (&) for manual memory management
 
 // Interface for temperature sensor (I - Interface Segregation, D - Dependency Inversion)
 class ITemperatureSensor {
@@ -63,17 +64,18 @@ public:
 // Temperature controller (S - Single Responsibility, L - Liskov Substitution via interfaces)
 class TemperatureController {
 private:
-    std::unique_ptr<ITemperatureSensor> sensor;
-    std::unique_ptr<IFanActuator> fan;
-    std::unique_ptr<INotificationSender> notifier;
+    ITemperatureSensor& sensor;  // Reference (&) - cannot be null, cannot be reassigned
+    IFanActuator& fan;
+    INotificationSender& notifier;
     float threshold;
 
 public:
-    TemperatureController(std::unique_ptr<ITemperatureSensor> s,
-                         std::unique_ptr<IFanActuator> f,
-                         std::unique_ptr<INotificationSender> n,
+    TemperatureController(ITemperatureSensor* s,  // Raw pointer (*) parameter
+                         IFanActuator* f,
+                         INotificationSender* n,
                          float t)
-        : sensor(std::move(s)), fan(std::move(f)), notifier(std::move(n)), threshold(t) {}
+        : sensor(*s), fan(*f), notifier(*n), threshold(t) {  // Dereference * to initialize references &
+    }
 
     void control() {
         float temp = sensor->getTemperature();
@@ -90,19 +92,24 @@ public:
 };
 
 int main() {
-    // Create components using unique_ptr for ownership (D - Dependency Inversion)
-    auto sensor = std::make_unique<DHTSensor>();
-    auto fan = std::make_unique<RelayFan>();
-    auto notifier = std::make_unique<EmailNotifier>();
+    // Manual memory management with raw pointers (*) and new/delete
+    ITemperatureSensor* sensor = new DHTSensor();  // Raw pointer (*) with new
+    IFanActuator* fan = new RelayFan();
+    INotificationSender* notifier = new EmailNotifier();
 
-    // Controller owns the components via unique_ptr
-    TemperatureController controller(std::move(sensor), std::move(fan), std::move(notifier), 25.0f);
+    // Controller uses references (&) to the objects - demonstrates both * and &
+    TemperatureController controller(sensor, fan, notifier, 25.0f);
 
     // Simulate IoT loop
     for (int i = 0; i < 3; ++i) {
         controller.control();
         // In real IoT, this would be in loop() with delays
     }
+
+    // Manual cleanup with delete
+    delete sensor;
+    delete fan;
+    delete notifier;
 
     return 0;
 }

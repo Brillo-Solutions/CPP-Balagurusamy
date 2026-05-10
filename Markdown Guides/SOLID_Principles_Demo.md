@@ -239,10 +239,10 @@ public:
 
 class ToyBox {
 private:
-    std::vector<std::unique_ptr<Toy>> toys;
+    std::vector<Toy*> toys;  // Raw pointers (*) for container storage
 public:
-    void addToy(std::unique_ptr<Toy> toy) {
-        toys.push_back(std::move(toy));
+    void addToy(Toy* toy) {  // Raw pointer parameter
+        toys.push_back(toy);
         // No modification needed to add new toys!
     }
 };
@@ -257,18 +257,18 @@ The TemperatureController can work with new sensors, actuators, and notifiers wi
 // IoT Controller - Open for extension, closed for modification
 class TemperatureController {
 private:
-    std::unique_ptr<ITemperatureSensor> sensor;
-    std::unique_ptr<IFanActuator> fan;
-    std::unique_ptr<INotificationSender> notifier;
+    ITemperatureSensor& sensor;  // Reference (&) - cannot be null
+    IFanActuator& fan;
+    INotificationSender& notifier;
     float threshold;
 
 public:
-    // Constructor accepts ANY implementations of the interfaces
-    TemperatureController(std::unique_ptr<ITemperatureSensor> s,
-                         std::unique_ptr<IFanActuator> f,
-                         std::unique_ptr<INotificationSender> n,
+    // Constructor accepts raw pointers (*) and converts to references (&)
+    TemperatureController(ITemperatureSensor* s,  // Raw pointer parameter
+                         IFanActuator* f,
+                         INotificationSender* n,
                          float t)
-        : sensor(std::move(s)), fan(std::move(f)), notifier(std::move(n)), threshold(t) {}
+        : sensor(*s), fan(*f), notifier(*n), threshold(t) {}
 
     // Control logic - doesn't change when we add new components!
     void control() {
@@ -325,20 +325,28 @@ public:
 };
 
 int main() {
-    // Create controller with any combination of implementations
-    auto sensor = std::make_unique<DHTSensor>();
-    auto fan = std::make_unique<RelayFan>();
-    auto notifier = std::make_unique<EmailNotifier>();
-    TemperatureController controller(std::move(sensor), std::move(fan), std::move(notifier), 25.0f);
+    // Manual memory management with raw pointers (*) and references (&)
+    ITemperatureSensor* sensor = new DHTSensor();  // Raw pointer with new
+    IFanActuator* fan = new RelayFan();
+    INotificationSender* notifier = new EmailNotifier();
+
+    // Controller uses references (&) to the objects
+    TemperatureController controller(sensor, fan, notifier, 25.0f);
 
     controller.control();
 
+    // Manual cleanup
+    delete sensor;
+    delete fan;
+    delete notifier;
+
     // Want to use different components? Just create new implementations
     // and inject them - NO CHANGES to TemperatureController needed!
-    // auto newSensor = std::make_unique<DS18B20Sensor>();
-    // auto newFan = std::make_unique<ServoFan>();
-    // auto newNotifier = std::make_unique<SMSNotifier>();
-    // TemperatureController newController(std::move(newSensor), std::move(newFan), std::move(newNotifier), 25.0f);
+    // ITemperatureSensor* newSensor = new DS18B20Sensor();  // Raw pointer
+    // IFanActuator* newFan = new ServoFan();
+    // INotificationSender* newNotifier = new SMSNotifier();
+    // TemperatureController newController(newSensor, newFan, newNotifier, 25.0f);
+    // delete newSensor; delete newFan; delete newNotifier;
 
     return 0;
 }
@@ -656,11 +664,11 @@ public:
 
 class CoffeeDrinker {
 private:
-    std::unique_ptr<IHotDrinkMaker> drinkMaker;  // Depends on idea
+    IHotDrinkMaker& drinkMaker;  // Reference (&) - depends on idea
 public:
-    CoffeeDrinker(std::unique_ptr<IHotDrinkMaker> maker) : drinkMaker(std::move(maker)) {}
+    CoffeeDrinker(IHotDrinkMaker* maker) : drinkMaker(*maker) {}  // Raw pointer (*) parameter
     void drink() {
-        drinkMaker->makeDrink();  // Can use any drink maker!
+        drinkMaker.makeDrink();  // Can use any drink maker!
     }
 };
 ```
@@ -672,11 +680,11 @@ High-level IoT control logic depends on abstractions, not specific hardware impl
 // High-level business logic depends on abstraction, not concrete implementations
 class NotificationService {
 private:
-    std::unique_ptr<NotificationManager> manager;  // Depends on abstraction
+    NotificationManager& manager;  // Reference (&) - depends on abstraction
 
 public:
-    // Constructor takes abstraction (interface), not concrete class
-    NotificationService(std::unique_ptr<NotificationManager> mgr) : manager(std::move(mgr)) {}
+    // Constructor takes raw pointer (*), converts to reference (&)
+    NotificationService(NotificationManager* mgr) : manager(*mgr) {}
 
     // Business logic: sending welcome notifications
     void sendWelcomeNotification(const std::string& userId) {
@@ -705,50 +713,55 @@ private:
 class NotificationServiceFactory {
 public:
     // Basic service with standard senders
-    static std::unique_ptr<NotificationService> createService() {
-        auto manager = std::make_unique<NotificationManager>();
-        manager->addSender(std::make_unique<EmailNotificationSender>());
-        manager->addSender(std::make_unique<SmsNotificationSender>());
-        manager->addSender(std::make_unique<PushNotificationSender>());
+    static NotificationService* createService() {  // Returns raw pointer (*)
+        NotificationManager* manager = new NotificationManager();  // Raw pointer with new
+        manager->addSender(new EmailNotificationSender());  // Raw pointers
+        manager->addSender(new SmsNotificationSender());
+        manager->addSender(new PushNotificationSender());
 
-        return std::make_unique<NotificationService>(std::move(manager));
+        return new NotificationService(manager);  // Raw pointer return
     }
 
     // Advanced service with retry and bulk capabilities
-    static std::unique_ptr<NotificationService> createAdvancedService() {
-        auto manager = std::make_unique<NotificationManager>();
-        manager->addSender(std::make_unique<RetryableEmailSender>());
-        manager->addSender(std::make_unique<BulkSmsSender>());
-        manager->addSender(std::make_unique<PushNotificationSender>());
+    static NotificationService* createAdvancedService() {  // Returns raw pointer (*)
+        NotificationManager* manager = new NotificationManager();  // Raw pointer with new
+        manager->addSender(new RetryableEmailSender());  // Raw pointers
+        manager->addSender(new BulkSmsSender());
+        manager->addSender(new PushNotificationSender());
 
-        return std::make_unique<NotificationService>(std::move(manager));
+        return new NotificationService(manager);  // Raw pointer return
     }
 
     // Test service with mock senders (doesn't actually send anything)
-    static std::unique_ptr<NotificationService> createTestService() {
-        auto manager = std::make_unique<NotificationManager>();
+    static NotificationService* createTestService() {  // Returns raw pointer (*)
+        NotificationManager* manager = new NotificationManager();  // Raw pointer with new
         // Add mock senders for testing
-        // manager->addSender(std::make_unique<MockEmailSender>());
-        // manager->addSender(std::make_unique<MockSmsSender>());
+        // manager->addSender(new MockEmailSender());  // Raw pointers
+        // manager->addSender(new MockSmsSender());
 
-        return std::make_unique<NotificationService>(std::move(manager));
+        return new NotificationService(manager);  // Raw pointer return
     }
 };
 
 int main() {
     // Business logic doesn't know or care which senders are used!
-    auto service = NotificationServiceFactory::createService();
+    NotificationService* service = NotificationServiceFactory::createService();  // Raw pointer
 
     // Same code works regardless of sender implementations
     service->sendWelcomeNotification("user123");
     service->sendSecurityAlert("user456");
 
     // Can easily switch to advanced service without changing business logic
-    auto advancedService = NotificationServiceFactory::createAdvancedService();
+    NotificationService* advancedService = NotificationServiceFactory::createAdvancedService();  // Raw pointer
     advancedService->sendWelcomeNotification("user789");
 
+    // Manual cleanup - very important with raw pointers!
+    delete service;
+    delete advancedService;
+
     // Can use test service for development without changing any business code
-    // auto testService = NotificationServiceFactory::createTestService();
+    // NotificationService* testService = NotificationServiceFactory::createTestService();
+    // delete testService;
 
     return 0;
 }
@@ -767,27 +780,30 @@ int main() {
 #include <iostream>
 #include <string>
 #include <vector>
-#include <memory>
 
 // Include all the classes defined above...
 
 int main() {
     try {
-        // Create notification service using factory
-        auto service = NotificationServiceFactory::createService();
+        // Create notification service using factory (returns raw pointer *)
+        NotificationService* service = NotificationServiceFactory::createService();
 
         // Send different types of notifications
         service->sendWelcomeNotification("123");
         service->sendSecurityAlert("456");
 
         // Demonstrate OCP - we can add new senders without modifying existing code
-        auto manager = std::make_unique<NotificationManager>();
-        manager->addSender(std::make_unique<EmailNotificationSender>());
-        manager->addSender(std::make_unique<SmsNotificationSender>());
-        manager->addSender(std::make_unique<PushNotificationSender>());
+        NotificationManager* manager = new NotificationManager();  // Raw pointer with new
+        manager->addSender(new EmailNotificationSender());  // Raw pointers
+        manager->addSender(new SmsNotificationSender());
+        manager->addSender(new PushNotificationSender());
 
         // Send to all registered senders
         manager->sendAll("System maintenance tonight", "all_users");
+
+        // Manual cleanup - critical with raw pointers!
+        delete service;
+        delete manager;
 
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;
@@ -838,13 +854,15 @@ void testEmailSender() {
 
 void testNotificationManager() {
     NotificationManager manager;
-    manager.addSender(std::make_unique<EmailNotificationSender>());
-    manager.addSender(std::make_unique<SmsNotificationSender>());
+    manager.addSender(new EmailNotificationSender());  // Raw pointers
+    manager.addSender(new SmsNotificationSender());
 
     // Test sending to specific types
     manager.sendToType("email", "Test", "user@example.com");
     manager.sendToType("sms", "Test", "+1234567890");
     // Should work without mixing up email and SMS
+
+    // Note: In a real test, you'd need to manage the memory cleanup
 }
 ```
 

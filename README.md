@@ -138,7 +138,7 @@ Located in the `Markdown Guides/` directory, you'll find comprehensive examples 
 #### 🌐 Multi-Language SOLID Demos
 Cross-language implementations of the same IoT system demonstrating SOLID principles:
 
-- **C++** (`solid_cpp_demo.cpp`) - Using smart pointers and RAII
+- **C++** (`solid_cpp_demo.cpp`) - Using raw pointers (*) and references (&) with manual memory management
 - **Java** (`solid_java_demo.java`) - Interface-based design
 - **C#** (`solid_csharp_demo.cs`) - .NET interface implementation
 - **Python** (`solid_python_demo.py`) - Duck typing with ABC
